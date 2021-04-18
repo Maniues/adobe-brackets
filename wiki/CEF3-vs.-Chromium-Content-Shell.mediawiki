@@ -1,0 +1,81 @@
+== Overview ==
+
+This document discusses findings on the differences between CEF3 and the Chrome Content Shell, and proposes a plan for moving Brackets from CEF1 to CEF3. 
+
+The research was done for this user story: https://trello.com/c/0J52L2bp
+
+== Research Spike Questions ==
+
+=== What does CEF provide over content shell? ===
+
+Content shell is intended to be the simplest possible client that uses the Chromium Content API. It's purpose is for rapid testing of the Content API and is '''not''' intended to be a starting point for a robust application. On the other hand, CEF '''is''' intended to be a robust high-level embedding API. 
+
+Functionality and performance of both are comparable. CEF is slightly larger (~1MB).
+
+=== How often does CEF update? ===
+
+CEF3 is in heavy development, and is being updated several times a week.
+
+=== Ease of debug and build? ===
+
+The hardest part of both is building Chromium. With CEF, we could leverage the cefclient project and split the cef.dylib/cef.dll building out from the app shell building, giving an advantage to CEF.
+
+== Specific areas to investigate ==
+
+=== Developer tools ===
+
+Both support --remote-debugging-port. CEF has built-in support for opening a dev tools window. This would be easy to add to Content Shell.
+
+=== Tooltips ===
+
+Both support native tooltips.
+
+=== Context menu support ===
+
+CEF has native context menu support. Content shell does not.
+
+=== Overall performance ===
+
+No noticeable differences between the two.
+
+== Detailed Testing Notes ==
+
+Once it became clear that CEF3 was the leading contender, detailed testing was done to uncover any issues that need to be resolved before we can use CEF3.
+
+Tests were made using CEF3 version 3.1142.651. A version of Brackets that uses a node backend and has the client side running in CEF client was tested. Due to the limits of the node backend, full testing of Brackets was not possible. 
+
+=== Mac ===
+
+- Menu shortcuts are not working. Shortcuts that are handled by JavaScript *do* work, but shortcuts like Cmd-X, Cmd-C and Cmd-V do not work. This is a blocking issue.
+
++ Everything else works fine.
+
+=== Windows ===
+
++ Native keyboard shortcuts (seem to) work--at least, Ctrl-C/Ctrl-V seem to work properly (and I don't think those are handled by CodeMirror).
+
+- The only minor bug I found was that the mouseover cursor for resizing the sidebar doesn't appear (the pointer just disappears). The actual resize works though.
+
+? I couldn't get Quick Open to work for some reason, though Find in Files worked fine if I picked a folder that didn't have any binaries in it. I didn't debug into this, but I'd be pretty surprised if it was a CEF issue (as opposed to some problem with the node-proxy prototype).
+
+Window resize/sidebar resize performance seems fine on my 2-core 4GB machine (though it has the standard WebKit/Chrome behavior of the repaint lagging behind the actual window resize).
+
+
+== Implementation Notes ==
+
+CEF3 is multi-process, which complicates development. The browser and renderer are run in separate processes (these are actually separate applications that are bundled inside the main application). JavaScript runs in the renderer process, which means V8 extensions cannot access the browser or main UI. CEF has examples of creating V8 extensions that send messages between the two processes. 
+
+Being multi-process also poses challenges when loading resources. You need to be aware of where the resources are located and which process (app) is running. See InitBracketsExtensions() for details.
+
+You can force CEF to run in a single process by launching with the <code>--single-process</code> option.
+
+I was able to get most of our existing V8 extensions to work in <code>--single-process</code> mode. The only parts not ported were closeLiveBrowser() and quit(). These can be ported, but will require more work.
+
+== Other Notes ==
+
+The initial CEF3 implementation will be done by porting the Brackets V8 extensions from CEF1 to CEF3. If we need to, we can do this in two steps: first, take the extensions as they are and run with the <code>--single-process</code> flag set; second, make the extensions work correctly in a multi-process environment. We need to evaluate the work required to make them work in a multi-process environment before making the decision.
+
+We should take this opportunity to make some key cleanups to the project structure:
+* Share as much code as possible (currently mac and win don't share any code at all)
+* Use a gyp file for project generation
+* Don't check in binaries

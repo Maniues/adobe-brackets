@@ -1,0 +1,1 @@
+Please see [Linux Version](https://github.com/adobe/brackets/wiki/Linux-Version) for more information.

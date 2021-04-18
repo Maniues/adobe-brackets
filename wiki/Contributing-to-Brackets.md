@@ -1,0 +1,1 @@
+The contents of this page have been moved to https://github.com/adobe/brackets/blob/master/CONTRIBUTING.md and https://github.com/adobe/brackets/wiki/How-to-Hack-on-Brackets
